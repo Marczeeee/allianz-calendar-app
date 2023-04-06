@@ -33,6 +33,11 @@ public interface CalendarEntryRepository extends JpaRepository<CalendarEntry, Lo
             + "(startDate<?2 AND endDate>=?2) OR (startDate<=?1 AND endDate>=?2)")
     long countOverlapping(LocalDateTime startDate, LocalDateTime endDate);
 
+    /**
+     * Returns the {@link CalendarEntry} available at the specified date.
+     * @param date Date which should be included by a reservation
+     * @return An {@link Optional} containing the result
+     */
     @Query(value = "SELECT ce FROM CalendarEntry ce WHERE startDate<=?1 AND endDate>=?1")
     Optional<CalendarEntry> getByDate(LocalDateTime date);
 }
