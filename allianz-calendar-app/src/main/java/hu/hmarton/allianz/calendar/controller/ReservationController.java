@@ -61,6 +61,7 @@ public class ReservationController {
      */
     @GetMapping(value = "/reservations/weekly")
     public List<CalendarEntry> listWeeklySchedule() {
+        logger.info("Listing reservations for current week");
         final LocalDateTime now = LocalDateTime.now();
         final LocalDateTime mondayOfWeek = LocalTime.MIN.atDate(now.with(ChronoField.DAY_OF_WEEK,
                 DayOfWeek.MONDAY.getValue()).toLocalDate());
@@ -86,12 +87,15 @@ public class ReservationController {
      * @param calendarEntry New calendar entry object
      */
     private void checkReservationIsWithinWeek(final CalendarEntry calendarEntry) {
+        logger.debug("Checking if reservation ({}) is within the allowed range the week", calendarEntry);
         final LocalDateTime startDate = calendarEntry.getStartDate().truncatedTo(ChronoUnit.SECONDS);
         final LocalDateTime endDate = calendarEntry.getEndDate().truncatedTo(ChronoUnit.SECONDS);
         if (startDate.isAfter(endDate)) {
+            logger.error("Reservation ({}) start date is before its end date", calendarEntry);
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_END_DATE_BEFORE_START_DATE);
         }
         if (startDate.isBefore(LocalDateTime.now())) {
+            logger.error("Reservation ({}) start date is in the past", calendarEntry);
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_START_DATE_MUST_BE_IN_FUTURE);
         }
 
@@ -99,6 +103,7 @@ public class ReservationController {
                 LocalTime.MAX.atDate(startDate.with(ChronoField.DAY_OF_WEEK, DayOfWeek.FRIDAY.getValue()).toLocalDate());
 
         if (startDate.isAfter(lastDayOfWeek)) {
+            logger.error("Reservation ({}) start date is not on a weekday!", calendarEntry);
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_MUST_BE_ON_WEEKDAY);
         }
     }
@@ -114,9 +119,13 @@ public class ReservationController {
      */
     private void checkReservationTimeWithinDay(final CalendarEntry calendarEntry) {
         if (calendarEntry.getStartDate().getHour() < FIRST_HOUR_OF_WEEKDAY_ALLOWED) {
+            logger.error("Reservation ({}) start date is before allowed ({}:00) time within a weekday!", calendarEntry,
+                    FIRST_HOUR_OF_WEEKDAY_ALLOWED);
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_MUST_START_AFTER_9AM);
         }
         if (calendarEntry.getEndDate().getHour() > LAST_HOUR_OF_WEEKDAY_ALLOWED) {
+            logger.error("Reservation ({}) end date is after allowed ({}:00) time within a weekday!", calendarEntry,
+                    LAST_HOUR_OF_WEEKDAY_ALLOWED);
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_MUST_END_BEFORE_5PM);
         }
     }
@@ -138,15 +147,21 @@ public class ReservationController {
         final Duration reservationDuration = Duration.between(startDate, endDate);
         final long reservationLengthInMinutes = reservationDuration.toMinutes();
         if (reservationLengthInMinutes / RESERVATION_SLOT_SIZE <= 0) {
+            logger.error("Reservation ({}) length ({} min) should be at least {} minutes!", calendarEntry,
+                    reservationLengthInMinutes, RESERVATION_SLOT_SIZE);
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_LENGTH_AT_LEAST_30MIN);
         }
         if (reservationLengthInMinutes / RESERVATION_SLOT_SIZE > MAX_TIME_SLOTS_PER_RESERVATION) {
+            logger.error("Reservation ({}) length ({} min) is too long!", calendarEntry, reservationLengthInMinutes);
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_LENGTH_MAX_3HOURS);
         }
         if (reservationLengthInMinutes % RESERVATION_SLOT_SIZE != 0) {
+            logger.error("Reservation ({}) length ({} min) should be dividable by {} minutes!", calendarEntry,
+                    reservationLengthInMinutes, RESERVATION_SLOT_SIZE);
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_30MIN_SLOTS_ONLY);
         }
         if (startDate.getMinute() % MIN_OF_TIME_ALLOWED != 0) {
+            logger.error("Reservation ({}) start date should be 00 or 30 minutes!", calendarEntry);
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_START_AT_00MIN_OR_30MIN_ONLY);
         }
     }
@@ -159,6 +174,7 @@ public class ReservationController {
         final long overlappingEntriesCount = calendarEntryRepository.countOverlapping(calendarEntry.getStartDate(),
                 calendarEntry.getEndDate());
         if (overlappingEntriesCount > 0) {
+            logger.error("Reservation ({}) overlaps with {} existing reversion(s)!", calendarEntry, overlappingEntriesCount);
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_DATES_OVERLAPPING_WITH_EXISTING_RESERVATION);
         }
     }
