@@ -9,7 +9,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
-import java.util.Date;
 import java.util.StringJoiner;
 
 /**
@@ -62,7 +61,7 @@ public class CalendarEntry {
     }
 
     public void setEndDate(final LocalDateTime endDate) {
-        this.endDate = endDate != null ? LocalDateTime.from(endDate) : null;;
+        this.endDate = endDate != null ? LocalDateTime.from(endDate) : null;
     }
 
     @Override

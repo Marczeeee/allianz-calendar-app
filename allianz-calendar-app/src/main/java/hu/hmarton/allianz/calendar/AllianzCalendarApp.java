@@ -13,7 +13,7 @@ public class AllianzCalendarApp {
      * @param args Application arguments
      * @throws Exception If any exception occurs during initialization of the application
      */
-    public static void main(String[] args) throws Exception {
+    public static void main(final String[] args) throws Exception {
         SpringApplication.run(AllianzCalendarApp.class, args);
     }
 }

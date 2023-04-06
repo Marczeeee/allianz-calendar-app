@@ -37,11 +37,11 @@ public class ExceptionControllerAdvice {
     @ResponseBody
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public Map<String, String> handleBeanValidationExceptions(MethodArgumentNotValidException exception) {
+    public Map<String, String> handleBeanValidationExceptions(final MethodArgumentNotValidException exception) {
         final Map<String, String> errors = new HashMap<>();
-        exception.getBindingResult().getAllErrors().forEach((error) -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
+        exception.getBindingResult().getAllErrors().forEach(error -> {
+            final String fieldName = ((FieldError) error).getField();
+            final String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
         return errors;

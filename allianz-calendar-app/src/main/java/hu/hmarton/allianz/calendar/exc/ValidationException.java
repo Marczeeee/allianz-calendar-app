@@ -5,7 +5,7 @@ package hu.hmarton.allianz.calendar.exc;
  */
 public class ValidationException extends RuntimeException {
     /**
-     * Ctor.
+     * Constructor.
      * @param message Validation error message
      */
     public ValidationException(final String message) {
