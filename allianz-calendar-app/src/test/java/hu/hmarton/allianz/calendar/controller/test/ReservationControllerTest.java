@@ -143,6 +143,20 @@ public class ReservationControllerTest {
     }
 
     @Test
+    public void createNewReservationWithWrongLength_Error() throws Exception {
+        final String jsonContent =
+                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(createNewCalendarEntry(
+                        RandomStringUtils.randomAlphabetic(8, 16), createValidStartDateAtNextMonday(),
+                        Duration.of(53, ChronoUnit.MINUTES)));
+
+        mvc.perform(MockMvcRequestBuilders.post("/reservation")
+                        .contentType(MediaType.APPLICATION_JSON).content(jsonContent))
+                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.BAD_REQUEST.value()))
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(MockMvcResultMatchers.content().string(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_30MIN_SLOTS_ONLY));
+    }
+
+    @Test
     public void createNewReservationOnWeekend_Error() throws Exception {
         final String jsonContent =
                 createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(createNewCalendarEntry(
@@ -285,6 +299,51 @@ public class ReservationControllerTest {
                 .andExpect(MockMvcResultMatchers.status().is(HttpStatus.BAD_REQUEST.value()))
                 .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
                 .andExpect(MockMvcResultMatchers.content().string(ValidationErrorMessages.VALIDATION_ERROR_DATES_OVERLAPPING_WITH_EXISTING_RESERVATION));
+    }
+
+    @Test
+    public void create4ReservationsByDifferentPersonsOnSameDayWithoutOverlapping_Success() throws Exception {
+        final int reservationDurationHours = 2;
+        //Next Wednesday from 9:00-11:00
+        final LocalDateTime firstReservationStartDate =
+                createValidStartDateAtNextMonday().plusDays(2).withHour(9).withMinute(0);
+        final String firstJsonContent =
+                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(
+                        createNewCalendarEntry(RandomStringUtils.randomAlphabetic(8, 16), firstReservationStartDate,
+                                Duration.of(reservationDurationHours, ChronoUnit.HOURS)));
+        mvc.perform(MockMvcRequestBuilders.post("/reservation").contentType(MediaType.APPLICATION_JSON)
+                .content(firstJsonContent)).andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+
+        //Next Wednesday from 11:00-13:00
+        final LocalDateTime secondReservationStartDate = firstReservationStartDate.plusHours(2);
+        final String secondJsonContent =
+                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(
+                        createNewCalendarEntry(RandomStringUtils.randomAlphabetic(8, 16), secondReservationStartDate,
+                                Duration.of(reservationDurationHours, ChronoUnit.HOURS)));
+        mvc.perform(MockMvcRequestBuilders.post("/reservation").contentType(MediaType.APPLICATION_JSON)
+                        .content(secondJsonContent)).andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+
+        //Next Wednesday from 13:00-15:00
+        final LocalDateTime thirdReservationStartDate = secondReservationStartDate.plusHours(2);
+        final String thirdJsonContent =
+                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(
+                        createNewCalendarEntry(RandomStringUtils.randomAlphabetic(8, 16), thirdReservationStartDate,
+                                Duration.of(reservationDurationHours, ChronoUnit.HOURS)));
+        mvc.perform(MockMvcRequestBuilders.post("/reservation").contentType(MediaType.APPLICATION_JSON)
+                        .content(thirdJsonContent)).andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+
+        //Next Wednesday from 15:00-17:00
+        final LocalDateTime fourthReservationStartDate = thirdReservationStartDate.plusHours(2);
+        final String fourthJsonContent =
+                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(
+                        createNewCalendarEntry(RandomStringUtils.randomAlphabetic(8, 16), fourthReservationStartDate,
+                                Duration.of(reservationDurationHours, ChronoUnit.HOURS)));
+        mvc.perform(MockMvcRequestBuilders.post("/reservation").contentType(MediaType.APPLICATION_JSON)
+                        .content(fourthJsonContent)).andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
     }
 
     private CalendarEntry createRandomNewCalendarEntry(final boolean withPersonName, final boolean withStartDate,
