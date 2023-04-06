@@ -1,6 +1,7 @@
 package hu.hmarton.allianz.calendar.controller;
 
 import hu.hmarton.allianz.calendar.dto.OpenSlotDTO;
+import hu.hmarton.allianz.calendar.exc.ValidationErrorMessages;
 import hu.hmarton.allianz.calendar.exc.ValidationException;
 import hu.hmarton.allianz.calendar.model.CalendarEntry;
 import hu.hmarton.allianz.calendar.repository.CalendarEntryRepository;
@@ -13,8 +14,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.temporal.ChronoField;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -36,7 +41,15 @@ public class ReservationController {
     @PostMapping(value = "/reservation")
     public CalendarEntry createNewReservation(@Valid @RequestBody final CalendarEntry calendarEntry) {
         logger.info("Creating new reservation as {}", calendarEntry);
-        checkReservationIsWithinCurrentWeek(calendarEntry);
+        logger.debug("Modify the dates in the reservation object to use 00 seconds always.");
+        calendarEntry.setStartDate(calendarEntry.getStartDate() != null
+                ? calendarEntry.getStartDate().truncatedTo(ChronoUnit.SECONDS) : null);
+        calendarEntry.setEndDate(calendarEntry.getEndDate() != null
+                ? calendarEntry.getEndDate().truncatedTo(ChronoUnit.SECONDS) : null);
+
+        checkReservationIsWithinWeek(calendarEntry);
+        checkReservationTimeWithinDay(calendarEntry);
+        checkReservationLength(calendarEntry);
 
         return calendarEntryRepository.save(calendarEntry);
     }
@@ -56,27 +69,61 @@ public class ReservationController {
         return null;
     }
 
-    private void checkReservationIsWithinCurrentWeek(final CalendarEntry calendarEntry) {
+    private void checkReservationIsWithinWeek(final CalendarEntry calendarEntry) {
+        final LocalDateTime startDate = calendarEntry.getStartDate().truncatedTo(ChronoUnit.SECONDS);
+        final LocalDateTime endDate = calendarEntry.getEndDate().truncatedTo(ChronoUnit.SECONDS);
+        if (startDate.isAfter(endDate)) {
+            throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_END_DATE_BEFORE_START_DATE);
+        }
+        if (startDate.isBefore(LocalDateTime.now())) {
+            throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_START_DATE_MUST_BE_IN_FUTURE);
+        }
+
+        final LocalDateTime lastDayOfWeek =
+                LocalTime.MAX.atDate(startDate.with(ChronoField.DAY_OF_WEEK, DayOfWeek.FRIDAY.getValue()).toLocalDate());
+
+        if (startDate.isAfter(lastDayOfWeek)) {
+            throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_MUST_BE_ON_WEEKDAY);
+        }
+    }
+
+    /** Contains the number of the first hour can be booked on a weekday. */
+    private static final int FIRST_HOUR_OF_WEEKDAY_ALLOWED = 9;
+    /** Contains the number of the last hour can be used to end a reservation on a weekday. */
+    private static final int LAST_HOUR_OF_WEEKDAY_ALLOWED = 17;
+
+    private void checkReservationTimeWithinDay(final CalendarEntry calendarEntry) {
+        if (calendarEntry.getStartDate().getHour() < FIRST_HOUR_OF_WEEKDAY_ALLOWED) {
+            throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_MUST_START_AFTER_9AM);
+        }
+        if (calendarEntry.getEndDate().getHour() > LAST_HOUR_OF_WEEKDAY_ALLOWED) {
+            throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_MUST_END_BEFORE_5PM);
+        }
+    }
+
+    /** Shortest reservation length in minutes. */
+    private static final int RESERVATION_SLOT_SIZE = 30;
+    /** Maximal number of time slots to be booked in one reservation. */
+    private static final int MAX_TIME_SLOTS_PER_RESERVATION = 6;
+    /** Number helping to determine if reservation starts at a proper time (hh:00 or hh:30). */
+    private static final int MIN_OF_TIME_ALLOWED = 30;
+
+    private void checkReservationLength(final CalendarEntry calendarEntry) {
         final LocalDateTime startDate = calendarEntry.getStartDate();
         final LocalDateTime endDate = calendarEntry.getEndDate();
-        if (startDate.isAfter(endDate)) {
-            throw new ValidationException("Start date must be before end date");
+        final Duration reservationDuration = Duration.between(startDate, endDate);
+        final long reservationLengthInMinutes = reservationDuration.toMinutes();
+        if (reservationLengthInMinutes / RESERVATION_SLOT_SIZE <= 0) {
+            throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_LENGTH_AT_LEAST_30MIN);
         }
-
-        final LocalDateTime zdt = LocalDateTime.now();
-        final LocalDateTime firstDayOfWeek = zdt.with(ChronoField.DAY_OF_WEEK, 1);
-        final LocalDateTime lastDayOfWeek = zdt.with(ChronoField.DAY_OF_WEEK, 7);
-
-        if (startDate.isBefore(firstDayOfWeek)) {
-            throw new ValidationException("Start date is before current week");
-        } else if (startDate.isAfter(lastDayOfWeek)) {
-            throw new ValidationException("Start date is after current week");
+        if (reservationLengthInMinutes / RESERVATION_SLOT_SIZE > MAX_TIME_SLOTS_PER_RESERVATION) {
+            throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_LENGTH_MAX_3HOURS);
         }
-
-        if (endDate.isBefore(firstDayOfWeek)) {
-            throw new ValidationException("End date is before current week");
-        } else if (endDate.isAfter(lastDayOfWeek)) {
-            throw new ValidationException("End date is after current week");
+        if (reservationLengthInMinutes % RESERVATION_SLOT_SIZE != 0) {
+            throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_30MIN_SLOTS_ONLY);
+        }
+        if (startDate.getMinute() % MIN_OF_TIME_ALLOWED != 0) {
+            throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_START_AT_00MIN_OR_30MIN_ONLY);
         }
     }
 }

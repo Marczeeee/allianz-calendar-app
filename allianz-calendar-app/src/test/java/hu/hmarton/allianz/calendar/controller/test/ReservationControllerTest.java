@@ -3,6 +3,7 @@ package hu.hmarton.allianz.calendar.controller.test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import hu.hmarton.allianz.calendar.AllianzCalendarApp;
+import hu.hmarton.allianz.calendar.exc.ValidationErrorMessages;
 import hu.hmarton.allianz.calendar.model.CalendarEntry;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -34,8 +36,8 @@ public class ReservationControllerTest {
     @Test
     public void createNewReservationSuccessful() throws Exception {
         final String jsonContent =
-                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(createRandomNewCalendarEntry(true, true,
-                         true));
+                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(createNewCalendarEntry(
+                        RandomStringUtils.randomAlphabetic(8, 16), createValidStartDateAtNextMonday(), Duration.of(1, ChronoUnit.HOURS)));
 
         mvc.perform(MockMvcRequestBuilders.post("/reservation")
                         .contentType(MediaType.APPLICATION_JSON).content(jsonContent))
@@ -89,8 +91,95 @@ public class ReservationControllerTest {
         mvc.perform(MockMvcRequestBuilders.post("/reservation")
                         .contentType(MediaType.APPLICATION_JSON).content(jsonContent))
                 .andExpect(MockMvcResultMatchers.status().is(HttpStatus.BAD_REQUEST.value()))
-                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN));
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(MockMvcResultMatchers.content().string(ValidationErrorMessages.VALIDATION_ERROR_START_DATE_MUST_BE_IN_FUTURE));
     }
+
+    @Test
+    public void createNewReservationTooShort() throws Exception {
+        final String jsonContent =
+                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(createNewCalendarEntry(
+                        RandomStringUtils.randomAlphabetic(8, 16), createValidStartDateAtNextMonday(), Duration.of(1,
+                                ChronoUnit.MINUTES)));
+
+        mvc.perform(MockMvcRequestBuilders.post("/reservation")
+                        .contentType(MediaType.APPLICATION_JSON).content(jsonContent))
+                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.BAD_REQUEST.value()))
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(MockMvcResultMatchers.content().string(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_LENGTH_AT_LEAST_30MIN));
+    }
+
+    @Test
+    public void createNewReservationTooLong() throws Exception {
+        final String jsonContent =
+                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(createNewCalendarEntry(
+                        RandomStringUtils.randomAlphabetic(8, 16), createValidStartDateAtNextMonday(), Duration.of(4,
+                                ChronoUnit.HOURS)));
+
+        mvc.perform(MockMvcRequestBuilders.post("/reservation")
+                        .contentType(MediaType.APPLICATION_JSON).content(jsonContent))
+                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.BAD_REQUEST.value()))
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(MockMvcResultMatchers.content().string(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_LENGTH_MAX_3HOURS));
+    }
+
+    @Test
+    public void createNewReservationStartingAt15Minutes() throws Exception {
+        final String jsonContent =
+                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(createNewCalendarEntry(
+                        RandomStringUtils.randomAlphabetic(8, 16), createValidStartDateAtNextMonday().withMinute(15),
+                        Duration.of(2, ChronoUnit.HOURS)));
+
+        mvc.perform(MockMvcRequestBuilders.post("/reservation")
+                        .contentType(MediaType.APPLICATION_JSON).content(jsonContent))
+                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.BAD_REQUEST.value()))
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(MockMvcResultMatchers.content().string(ValidationErrorMessages.VALIDATION_ERROR_START_AT_00MIN_OR_30MIN_ONLY));
+    }
+
+    @Test
+    public void createNewReservationOnWeekend() throws Exception {
+        final String jsonContent =
+                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(createNewCalendarEntry(
+                        RandomStringUtils.randomAlphabetic(8, 16), createValidStartDateAtNextMonday().plus(5, ChronoUnit.DAYS),
+                        Duration.of(2, ChronoUnit.HOURS)));
+
+        mvc.perform(MockMvcRequestBuilders.post("/reservation")
+                        .contentType(MediaType.APPLICATION_JSON).content(jsonContent))
+                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.BAD_REQUEST.value()))
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(MockMvcResultMatchers.content().string(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_MUST_BE_ON_WEEKDAY));
+    }
+
+    @Test
+    public void createNewReservationStartBefore9AM() throws Exception {
+        final String jsonContent =
+                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(createNewCalendarEntry(
+                        RandomStringUtils.randomAlphabetic(8, 16), createValidStartDateAtNextMonday().withHour(5),
+                        Duration.of(2, ChronoUnit.HOURS)));
+
+        mvc.perform(MockMvcRequestBuilders.post("/reservation")
+                        .contentType(MediaType.APPLICATION_JSON).content(jsonContent))
+                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.BAD_REQUEST.value()))
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(MockMvcResultMatchers.content().string(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_MUST_START_AFTER_9AM));
+    }
+
+    @Test
+    public void createNewReservationEndAfter5PM() throws Exception {
+        final String jsonContent =
+                createJsonObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(createNewCalendarEntry(
+                        RandomStringUtils.randomAlphabetic(8, 16), createValidStartDateAtNextMonday().withHour(16),
+                        Duration.of(2, ChronoUnit.HOURS)));
+
+        mvc.perform(MockMvcRequestBuilders.post("/reservation")
+                        .contentType(MediaType.APPLICATION_JSON).content(jsonContent))
+                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.BAD_REQUEST.value()))
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(MockMvcResultMatchers.content().string(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_MUST_END_BEFORE_5PM));
+    }
+
+
 
     private CalendarEntry createRandomNewCalendarEntry(final boolean withPersonName, final boolean withStartDate,
                                                        final boolean withEndDate) {
@@ -117,5 +206,14 @@ public class ReservationControllerTest {
         final ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         return objectMapper;
+    }
+
+    private LocalDateTime createValidStartDateAtNextMonday() {
+        final LocalDateTime now = LocalDateTime.now();
+        final DayOfWeek dayOfWeek = now.getDayOfWeek();
+        final int dayOfWeekValue = dayOfWeek.getValue();
+        final LocalDateTime nextMonday =
+                now.plus((7 - dayOfWeekValue) + 1, ChronoUnit.DAYS).withHour(10).withMinute(0).withSecond(0);
+        return nextMonday;
     }
 }
