@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repository interface for managing {@link CalendarEntry} entities withing a database.
@@ -31,4 +32,7 @@ public interface CalendarEntryRepository extends JpaRepository<CalendarEntry, Lo
     @Query(value = "SELECT count(*) FROM CalendarEntry WHERE (startDate<=?1 AND endDate>?1) OR "
             + "(startDate<?2 AND endDate>=?2) OR (startDate<=?1 AND endDate>=?2)")
     long countOverlapping(LocalDateTime startDate, LocalDateTime endDate);
+
+    @Query(value = "SELECT ce FROM CalendarEntry ce WHERE startDate<=?1 AND endDate>=?1")
+    Optional<CalendarEntry> getByDate(LocalDateTime date);
 }

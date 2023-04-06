@@ -12,15 +12,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * REST controller class for managing reservations.
@@ -77,9 +81,22 @@ public class ReservationController {
         return List.of();
     }
 
-    @GetMapping(value = "/reservations/bydate")
-    public CalendarEntry getReservationByDate(final String date) {
-        return null;
+    /** Pattern of date and time used to query person name did the reservation. */
+    private static final String DATE_TIME_FORMAT = "yy.MM.dd HH:mm";
+
+    /**
+     * Returns the name of the person who did the reservation at the specified date and time. Returns an error
+     * message if no reservation is available at the specified date and time.
+     * @param dateString Date and time string
+     * @return Name of the person who did the reservation, or an error message
+     */
+    @GetMapping(value = "/reservations/personname/bydate")
+    public String getReservationPersonNameByDate(@RequestParam(name = "dateString") final String dateString) {
+        logger.info("Get person name made the reservation by date: {}", dateString);
+        final LocalDateTime dateTime = LocalDateTime.from(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT).parse(dateString));
+        final Optional<CalendarEntry> optionalCalendarEntry = calendarEntryRepository.getByDate(dateTime);
+        return optionalCalendarEntry.isPresent() ? optionalCalendarEntry.get().getBookingPersonName()
+                : "No reservation is available at the specified date and time.";
     }
 
     /**
