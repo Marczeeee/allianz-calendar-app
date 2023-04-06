@@ -50,17 +50,29 @@ public class ReservationController {
         checkReservationIsWithinWeek(calendarEntry);
         checkReservationTimeWithinDay(calendarEntry);
         checkReservationLength(calendarEntry);
+        checkReservationOverlapping(calendarEntry);
 
         return calendarEntryRepository.save(calendarEntry);
     }
 
+    /**
+     * Lists all reservation of the current week.
+     * @return List of reservation saved for current week
+     */
     @GetMapping(value = "/reservations/weekly")
     public List<CalendarEntry> listWeeklySchedule() {
-        return List.of();
+        final LocalDateTime now = LocalDateTime.now();
+        final LocalDateTime mondayOfWeek = LocalTime.MIN.atDate(now.with(ChronoField.DAY_OF_WEEK,
+                DayOfWeek.MONDAY.getValue()).toLocalDate());
+        final LocalDateTime fridayOfWeek =
+                LocalTime.MAX.atDate(now.with(ChronoField.DAY_OF_WEEK, DayOfWeek.FRIDAY.getValue()).toLocalDate());
+
+        return calendarEntryRepository.findByStartDateBetweenOrderByStartDateAsc(mondayOfWeek, fridayOfWeek);
     }
 
     @GetMapping(value = "/reservations/freehours")
     public List<OpenSlotDTO> listWeeklyOpenSlots() {
+
         return List.of();
     }
 
@@ -69,6 +81,10 @@ public class ReservationController {
         return null;
     }
 
+    /**
+     * Checks if a reservation is within the allowed range within the week determined by its starting date.
+     * @param calendarEntry New calendar entry object
+     */
     private void checkReservationIsWithinWeek(final CalendarEntry calendarEntry) {
         final LocalDateTime startDate = calendarEntry.getStartDate().truncatedTo(ChronoUnit.SECONDS);
         final LocalDateTime endDate = calendarEntry.getEndDate().truncatedTo(ChronoUnit.SECONDS);
@@ -92,6 +108,10 @@ public class ReservationController {
     /** Contains the number of the last hour can be used to end a reservation on a weekday. */
     private static final int LAST_HOUR_OF_WEEKDAY_ALLOWED = 17;
 
+    /**
+     * Checks is a reservation is withing the allowed time frame in a day.
+     * @param calendarEntry New calendar entry object
+     */
     private void checkReservationTimeWithinDay(final CalendarEntry calendarEntry) {
         if (calendarEntry.getStartDate().getHour() < FIRST_HOUR_OF_WEEKDAY_ALLOWED) {
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_RESERVATION_MUST_START_AFTER_9AM);
@@ -108,6 +128,10 @@ public class ReservationController {
     /** Number helping to determine if reservation starts at a proper time (hh:00 or hh:30). */
     private static final int MIN_OF_TIME_ALLOWED = 30;
 
+    /**
+     * Checks if the length of the reservation is within allowed bounds.
+     * @param calendarEntry New calendar entry object
+     */
     private void checkReservationLength(final CalendarEntry calendarEntry) {
         final LocalDateTime startDate = calendarEntry.getStartDate();
         final LocalDateTime endDate = calendarEntry.getEndDate();
@@ -124,6 +148,18 @@ public class ReservationController {
         }
         if (startDate.getMinute() % MIN_OF_TIME_ALLOWED != 0) {
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_START_AT_00MIN_OR_30MIN_ONLY);
+        }
+    }
+
+    /**
+     * Checks if a new reservation would overlap with any existing reservation(s).
+     * @param calendarEntry New calendar entry object
+     */
+    private void checkReservationOverlapping(final CalendarEntry calendarEntry) {
+        final long overlappingEntriesCount = calendarEntryRepository.countOverlapping(calendarEntry.getStartDate(),
+                calendarEntry.getEndDate());
+        if (overlappingEntriesCount > 0) {
+            throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_DATES_OVERLAPPING_WITH_EXISTING_RESERVATION);
         }
     }
 }

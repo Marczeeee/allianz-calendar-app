@@ -24,4 +24,7 @@ public final class ValidationErrorMessages {
     public static final String VALIDATION_ERROR_RESERVATION_30MIN_SLOTS_ONLY = "Reservation should use 30 minutes long slots!";
 
     public static final String VALIDATION_ERROR_START_AT_00MIN_OR_30MIN_ONLY = "Reservation must start at 00 or 30 minutes!";
+
+    public static final String VALIDATION_ERROR_DATES_OVERLAPPING_WITH_EXISTING_RESERVATION = "Reservation dates "
+            + "overlapping with existing reservation(s)!";
 }
