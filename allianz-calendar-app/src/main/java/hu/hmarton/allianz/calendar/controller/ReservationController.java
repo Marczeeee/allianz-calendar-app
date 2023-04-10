@@ -20,11 +20,13 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * REST controller class for managing reservations.
@@ -75,7 +77,68 @@ public class ReservationController {
         return calendarEntryRepository.findByStartDateBetweenOrderByStartDateAsc(mondayOfWeek, fridayOfWeek);
     }
 
-    @GetMapping(value = "/reservations/freehours")
+    /** Minutes number indicating half of an hour. */
+    private static final int HALF_OF_HOUR_IN_MINUTES = 30;
+
+    /**
+     * Returns the open slots of the current day.
+     * @return List of open slots
+     */
+    @GetMapping(value = "/reservations/freehours/day")
+    public List<OpenSlotDTO> listDailyOpenSlots() {
+        logger.info("Listing all open time slots for current day");
+        final LocalDateTime now = LocalDateTime.now();
+        if (now.getDayOfWeek().getValue() > DayOfWeek.FRIDAY.getValue()) {
+            throw new ValidationException("Today is not weekday, reservation is not available!");
+        }
+
+        LocalDateTime dailyStartDate = now.truncatedTo(ChronoUnit.MINUTES);
+        if (dailyStartDate.getHour() < FIRST_HOUR_OF_WEEKDAY_ALLOWED) {
+            dailyStartDate = dailyStartDate.withHour(FIRST_HOUR_OF_WEEKDAY_ALLOWED);
+        }
+        if (dailyStartDate.getMinute() <= HALF_OF_HOUR_IN_MINUTES) {
+            dailyStartDate = dailyStartDate.withMinute(HALF_OF_HOUR_IN_MINUTES);
+        } else {
+            dailyStartDate = dailyStartDate.withHour(dailyStartDate.getHour() + 1).withMinute(0);
+        }
+
+        final LocalDateTime dailyEndDate = dailyStartDate.withHour(LAST_HOUR_OF_WEEKDAY_ALLOWED).withMinute(0);
+
+        final List<CalendarEntry> calendarEntriesToday =
+                calendarEntryRepository.findByStartDateBetweenOrderByStartDateAsc(dailyStartDate, dailyEndDate);
+        final Map<LocalDateTime, CalendarEntry> calendarEntryMap = calendarEntriesToday.stream()
+                .collect(Collectors.toMap(CalendarEntry::getStartDate, calendarEntry -> calendarEntry));
+
+        LocalDateTime lastOpenSlotDate = null;
+        LocalDateTime currentCheckedDate = dailyStartDate;
+        final List<OpenSlotDTO> openSlotsToday = new ArrayList<>();
+        while (!currentCheckedDate.isAfter(dailyEndDate)) {
+            if (calendarEntryMap.containsKey(currentCheckedDate)) {
+                if (lastOpenSlotDate != null) {
+                    final OpenSlotDTO openSlotDTO = new OpenSlotDTO();
+                    openSlotDTO.setSlotStartDate(lastOpenSlotDate);
+                    openSlotDTO.setSlotEndDate(currentCheckedDate);
+                    openSlotsToday.add(openSlotDTO);
+                    lastOpenSlotDate = null;
+                }
+                final CalendarEntry calendarEntry = calendarEntryMap.get(currentCheckedDate);
+                currentCheckedDate = calendarEntry.getEndDate();
+            } else {
+                if (lastOpenSlotDate != null) {
+                    final OpenSlotDTO openSlotDTO = new OpenSlotDTO();
+                    openSlotDTO.setSlotStartDate(lastOpenSlotDate);
+                    openSlotDTO.setSlotEndDate(currentCheckedDate);
+                    openSlotsToday.add(openSlotDTO);
+                }
+                lastOpenSlotDate = currentCheckedDate;
+                currentCheckedDate = currentCheckedDate.plusMinutes(RESERVATION_SLOT_SIZE);
+            }
+        }
+
+        return openSlotsToday;
+    }
+
+    @GetMapping(value = "/reservations/freehours/week")
     public List<OpenSlotDTO> listWeeklyOpenSlots() {
 
         return List.of();
