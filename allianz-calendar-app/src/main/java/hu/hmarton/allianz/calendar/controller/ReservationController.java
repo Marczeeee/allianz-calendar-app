@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.DayOfWeek;
 import java.time.Duration;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -68,12 +67,12 @@ public class ReservationController {
      */
     @GetMapping(value = "/reservations/weekly")
     public List<CalendarEntry> listWeeklySchedule() {
-        logger.info("Listing reservations for current week");
         final LocalDateTime now = LocalDateTime.now();
         final LocalDateTime mondayOfWeek = LocalTime.MIN.atDate(now.with(ChronoField.DAY_OF_WEEK,
                 DayOfWeek.MONDAY.getValue()).toLocalDate());
         final LocalDateTime fridayOfWeek =
                 LocalTime.MAX.atDate(now.with(ChronoField.DAY_OF_WEEK, DayOfWeek.FRIDAY.getValue()).toLocalDate());
+        logger.info("Listing reservations for current week ({} - {})", mondayOfWeek.toLocalDate(), fridayOfWeek.toLocalDate());
 
         return calendarEntryRepository.findByStartDateBetweenOrderByStartDateAsc(mondayOfWeek, fridayOfWeek);
     }
@@ -87,15 +86,26 @@ public class ReservationController {
      */
     @GetMapping(value = "/reservations/freehours/day")
     public List<OpenSlotDTO> listDailyOpenSlots() {
-        logger.info("Listing all open time slots for current day");
         final LocalDateTime now = LocalDateTime.now();
+        logger.info("Listing all open time slots for current day ({})", now.toLocalDate());
         return listOpenSlotsForDay(now);
     }
 
     @GetMapping(value = "/reservations/freehours/week")
     public List<OpenSlotDTO> listWeeklyOpenSlots() {
+        logger.info("Listing all open time slots for current week");
+        final LocalDateTime now = LocalDateTime.now();
+        int currentDayValue = now.getDayOfWeek().getValue();
+        final List<OpenSlotDTO> openSlots = listOpenSlotsForDay(now);
+        currentDayValue++;
+        LocalDateTime currentDayStart = now.truncatedTo(ChronoUnit.DAYS);
+        while (currentDayValue <= DayOfWeek.FRIDAY.getValue()) {
+            currentDayStart = currentDayStart.plusDays(1);
+            openSlots.addAll(listOpenSlotsForDay(currentDayStart));
+            currentDayValue++;
+        }
 
-        return List.of();
+        return openSlots;
     }
 
     /** Pattern of date and time used to query person name did the reservation. */
@@ -227,9 +237,9 @@ public class ReservationController {
         if (dailyStartDate.getHour() < FIRST_HOUR_OF_WEEKDAY_ALLOWED) {
             dailyStartDate = dailyStartDate.withHour(FIRST_HOUR_OF_WEEKDAY_ALLOWED);
         }
-        if (dailyStartDate.getMinute() <= HALF_OF_HOUR_IN_MINUTES) {
+        if (dailyStartDate.getMinute() > 0 && dailyStartDate.getMinute() <= HALF_OF_HOUR_IN_MINUTES) {
             dailyStartDate = dailyStartDate.withMinute(HALF_OF_HOUR_IN_MINUTES);
-        } else {
+        } else if (dailyStartDate.getMinute() > HALF_OF_HOUR_IN_MINUTES) {
             dailyStartDate = dailyStartDate.withHour(dailyStartDate.getHour() + 1).withMinute(0);
         }
 
