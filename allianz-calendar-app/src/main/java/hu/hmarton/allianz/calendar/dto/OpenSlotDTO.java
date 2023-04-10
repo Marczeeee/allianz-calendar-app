@@ -1,28 +1,28 @@
 package hu.hmarton.allianz.calendar.dto;
 
 import java.io.Serializable;
-import java.util.Date;
+import java.time.LocalDateTime;
 
 /** Data class representing an open slot in the calendar. */
 public class OpenSlotDTO implements Serializable {
     /** Start of the open slot. */
-    private Date slotStartDate;
+    private LocalDateTime slotStartDate;
     /** End of the open slot. */
-    private Date slotEndDate;
+    private LocalDateTime slotEndDate;
 
-    public Date getSlotStartDate() {
-        return slotStartDate != null ? new Date(slotStartDate.getTime()) : null;
+    public LocalDateTime getSlotStartDate() {
+        return slotStartDate != null ? LocalDateTime.from(slotStartDate) : null;
     }
 
-    public void setSlotStartDate(final Date slotStartDate) {
-        this.slotStartDate = slotStartDate != null ? new Date(slotStartDate.getTime()) : null;
+    public void setSlotStartDate(final LocalDateTime slotStartDate) {
+        this.slotStartDate = slotStartDate != null ? LocalDateTime.from(slotStartDate) : null;
     }
 
-    public Date getSlotEndDate() {
-        return slotEndDate != null ? new Date(slotEndDate.getTime()) : null;
+    public LocalDateTime getSlotEndDate() {
+        return slotEndDate != null ? LocalDateTime.from(slotEndDate) : null;
     }
 
-    public void setSlotEndDate(final Date slotEndDate) {
-        this.slotEndDate = slotEndDate != null ? new Date(slotEndDate.getTime()) : null;
+    public void setSlotEndDate(final LocalDateTime slotEndDate) {
+        this.slotEndDate = slotEndDate != null ? LocalDateTime.from(slotEndDate) : null;
     }
 }
