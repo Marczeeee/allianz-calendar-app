@@ -119,7 +119,7 @@ public class ReservationController {
      */
     @GetMapping(value = "/reservations/personname/bydate")
     public String getReservationPersonNameByDate(@RequestParam(name = "dateString") final String dateString) {
-        logger.info("Get person name made the reservation by date: {}", dateString);
+        logger.info("Get person's name who made the reservation by date: {}", dateString);
         final LocalDateTime dateTime = LocalDateTime.from(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT).parse(dateString));
         final Optional<CalendarEntry> optionalCalendarEntry = calendarEntryRepository.getByDate(dateTime);
         return optionalCalendarEntry.isPresent() ? optionalCalendarEntry.get().getBookingPersonName()
@@ -235,18 +235,27 @@ public class ReservationController {
 
         LocalDateTime dailyStartDate = day.truncatedTo(ChronoUnit.MINUTES);
         if (dailyStartDate.getHour() < FIRST_HOUR_OF_WEEKDAY_ALLOWED) {
+            logger.debug("Modifying the hour value of the opening date ({}) to be the first allowed value ({}) for a weekday",
+                    dailyStartDate, FIRST_HOUR_OF_WEEKDAY_ALLOWED);
             dailyStartDate = dailyStartDate.withHour(FIRST_HOUR_OF_WEEKDAY_ALLOWED);
         }
         if (dailyStartDate.getMinute() > 0 && dailyStartDate.getMinute() <= HALF_OF_HOUR_IN_MINUTES) {
+            logger.debug("Modifying the minutes value of the opening date ({}) to be the half of an hour ({})",
+                    dailyStartDate, HALF_OF_HOUR_IN_MINUTES);
             dailyStartDate = dailyStartDate.withMinute(HALF_OF_HOUR_IN_MINUTES);
         } else if (dailyStartDate.getMinute() > HALF_OF_HOUR_IN_MINUTES) {
+            logger.debug("Modifying the minutes value of the opening date ({}) to be the at the start of the next hour",
+                    dailyStartDate);
             dailyStartDate = dailyStartDate.withHour(dailyStartDate.getHour() + 1).withMinute(0);
         }
 
         final LocalDateTime dailyEndDate = dailyStartDate.withHour(LAST_HOUR_OF_WEEKDAY_ALLOWED).withMinute(0);
+        logger.debug("Setting daily ending date to {}", dailyEndDate);
 
         final List<CalendarEntry> calendarEntriesToday =
                 calendarEntryRepository.findByStartDateBetweenOrderByStartDateAsc(dailyStartDate, dailyEndDate);
+        logger.debug("Fetched {} calendar entries betweek daily opening ({} and ending ({}) dates",
+                calendarEntriesToday.size(), dailyStartDate, dailyEndDate);
         final Map<LocalDateTime, CalendarEntry> calendarEntryMap = calendarEntriesToday.stream()
                 .collect(Collectors.toMap(CalendarEntry::getStartDate, calendarEntry -> calendarEntry));
 
@@ -260,6 +269,7 @@ public class ReservationController {
                     openSlotDTO.setSlotStartDate(lastOpenSlotDate);
                     openSlotDTO.setSlotEndDate(currentCheckedDate);
                     openSlotsOfDay.add(openSlotDTO);
+                    logger.debug("Found a new open slot: {}", openSlotDTO);
                     lastOpenSlotDate = null;
                 }
                 final CalendarEntry calendarEntry = calendarEntryMap.get(currentCheckedDate);
@@ -270,6 +280,7 @@ public class ReservationController {
                     openSlotDTO.setSlotStartDate(lastOpenSlotDate);
                     openSlotDTO.setSlotEndDate(currentCheckedDate);
                     openSlotsOfDay.add(openSlotDTO);
+                    logger.debug("Found a new open slot: {}", openSlotDTO);
                 }
                 lastOpenSlotDate = currentCheckedDate;
                 currentCheckedDate = currentCheckedDate.plusMinutes(RESERVATION_SLOT_SIZE);

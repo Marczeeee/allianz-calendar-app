@@ -2,6 +2,7 @@ package hu.hmarton.allianz.calendar.dto;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.StringJoiner;
 
 /** Data class representing an open slot in the calendar. */
 public class OpenSlotDTO implements Serializable {
@@ -24,5 +25,11 @@ public class OpenSlotDTO implements Serializable {
 
     public void setSlotEndDate(final LocalDateTime slotEndDate) {
         this.slotEndDate = slotEndDate != null ? LocalDateTime.from(slotEndDate) : null;
+    }
+
+    @Override
+    public String toString() {
+        return new StringJoiner(", ", OpenSlotDTO.class.getSimpleName() + "[", "]").add("slotStartDate="
+                + slotStartDate).add("slotEndDate=" + slotEndDate).toString();
     }
 }
