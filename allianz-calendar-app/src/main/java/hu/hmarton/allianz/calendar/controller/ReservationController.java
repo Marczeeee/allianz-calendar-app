@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.DayOfWeek;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -88,54 +89,7 @@ public class ReservationController {
     public List<OpenSlotDTO> listDailyOpenSlots() {
         logger.info("Listing all open time slots for current day");
         final LocalDateTime now = LocalDateTime.now();
-        if (now.getDayOfWeek().getValue() > DayOfWeek.FRIDAY.getValue()) {
-            throw new ValidationException("Today is not weekday, reservation is not available!");
-        }
-
-        LocalDateTime dailyStartDate = now.truncatedTo(ChronoUnit.MINUTES);
-        if (dailyStartDate.getHour() < FIRST_HOUR_OF_WEEKDAY_ALLOWED) {
-            dailyStartDate = dailyStartDate.withHour(FIRST_HOUR_OF_WEEKDAY_ALLOWED);
-        }
-        if (dailyStartDate.getMinute() <= HALF_OF_HOUR_IN_MINUTES) {
-            dailyStartDate = dailyStartDate.withMinute(HALF_OF_HOUR_IN_MINUTES);
-        } else {
-            dailyStartDate = dailyStartDate.withHour(dailyStartDate.getHour() + 1).withMinute(0);
-        }
-
-        final LocalDateTime dailyEndDate = dailyStartDate.withHour(LAST_HOUR_OF_WEEKDAY_ALLOWED).withMinute(0);
-
-        final List<CalendarEntry> calendarEntriesToday =
-                calendarEntryRepository.findByStartDateBetweenOrderByStartDateAsc(dailyStartDate, dailyEndDate);
-        final Map<LocalDateTime, CalendarEntry> calendarEntryMap = calendarEntriesToday.stream()
-                .collect(Collectors.toMap(CalendarEntry::getStartDate, calendarEntry -> calendarEntry));
-
-        LocalDateTime lastOpenSlotDate = null;
-        LocalDateTime currentCheckedDate = dailyStartDate;
-        final List<OpenSlotDTO> openSlotsToday = new ArrayList<>();
-        while (!currentCheckedDate.isAfter(dailyEndDate)) {
-            if (calendarEntryMap.containsKey(currentCheckedDate)) {
-                if (lastOpenSlotDate != null) {
-                    final OpenSlotDTO openSlotDTO = new OpenSlotDTO();
-                    openSlotDTO.setSlotStartDate(lastOpenSlotDate);
-                    openSlotDTO.setSlotEndDate(currentCheckedDate);
-                    openSlotsToday.add(openSlotDTO);
-                    lastOpenSlotDate = null;
-                }
-                final CalendarEntry calendarEntry = calendarEntryMap.get(currentCheckedDate);
-                currentCheckedDate = calendarEntry.getEndDate();
-            } else {
-                if (lastOpenSlotDate != null) {
-                    final OpenSlotDTO openSlotDTO = new OpenSlotDTO();
-                    openSlotDTO.setSlotStartDate(lastOpenSlotDate);
-                    openSlotDTO.setSlotEndDate(currentCheckedDate);
-                    openSlotsToday.add(openSlotDTO);
-                }
-                lastOpenSlotDate = currentCheckedDate;
-                currentCheckedDate = currentCheckedDate.plusMinutes(RESERVATION_SLOT_SIZE);
-            }
-        }
-
-        return openSlotsToday;
+        return listOpenSlotsForDay(now);
     }
 
     @GetMapping(value = "/reservations/freehours/week")
@@ -257,5 +211,61 @@ public class ReservationController {
             logger.error("Reservation ({}) overlaps with {} existing reversion(s)!", calendarEntry, overlappingEntriesCount);
             throw new ValidationException(ValidationErrorMessages.VALIDATION_ERROR_DATES_OVERLAPPING_WITH_EXISTING_RESERVATION);
         }
+    }
+
+    /**
+     * Finds all open slots in the calendar for a given day.
+     * @param day Day to be checked for open slots
+     * @return List of open slots within the given day
+     */
+    private List<OpenSlotDTO> listOpenSlotsForDay(final LocalDateTime day) {
+        if (day.getDayOfWeek().getValue() > DayOfWeek.FRIDAY.getValue()) {
+            throw new ValidationException("Today is not weekday, reservation is not available!");
+        }
+
+        LocalDateTime dailyStartDate = day.truncatedTo(ChronoUnit.MINUTES);
+        if (dailyStartDate.getHour() < FIRST_HOUR_OF_WEEKDAY_ALLOWED) {
+            dailyStartDate = dailyStartDate.withHour(FIRST_HOUR_OF_WEEKDAY_ALLOWED);
+        }
+        if (dailyStartDate.getMinute() <= HALF_OF_HOUR_IN_MINUTES) {
+            dailyStartDate = dailyStartDate.withMinute(HALF_OF_HOUR_IN_MINUTES);
+        } else {
+            dailyStartDate = dailyStartDate.withHour(dailyStartDate.getHour() + 1).withMinute(0);
+        }
+
+        final LocalDateTime dailyEndDate = dailyStartDate.withHour(LAST_HOUR_OF_WEEKDAY_ALLOWED).withMinute(0);
+
+        final List<CalendarEntry> calendarEntriesToday =
+                calendarEntryRepository.findByStartDateBetweenOrderByStartDateAsc(dailyStartDate, dailyEndDate);
+        final Map<LocalDateTime, CalendarEntry> calendarEntryMap = calendarEntriesToday.stream()
+                .collect(Collectors.toMap(CalendarEntry::getStartDate, calendarEntry -> calendarEntry));
+
+        LocalDateTime lastOpenSlotDate = null;
+        LocalDateTime currentCheckedDate = dailyStartDate;
+        final List<OpenSlotDTO> openSlotsOfDay = new ArrayList<>();
+        while (!currentCheckedDate.isAfter(dailyEndDate)) {
+            if (calendarEntryMap.containsKey(currentCheckedDate)) {
+                if (lastOpenSlotDate != null) {
+                    final OpenSlotDTO openSlotDTO = new OpenSlotDTO();
+                    openSlotDTO.setSlotStartDate(lastOpenSlotDate);
+                    openSlotDTO.setSlotEndDate(currentCheckedDate);
+                    openSlotsOfDay.add(openSlotDTO);
+                    lastOpenSlotDate = null;
+                }
+                final CalendarEntry calendarEntry = calendarEntryMap.get(currentCheckedDate);
+                currentCheckedDate = calendarEntry.getEndDate();
+            } else {
+                if (lastOpenSlotDate != null) {
+                    final OpenSlotDTO openSlotDTO = new OpenSlotDTO();
+                    openSlotDTO.setSlotStartDate(lastOpenSlotDate);
+                    openSlotDTO.setSlotEndDate(currentCheckedDate);
+                    openSlotsOfDay.add(openSlotDTO);
+                }
+                lastOpenSlotDate = currentCheckedDate;
+                currentCheckedDate = currentCheckedDate.plusMinutes(RESERVATION_SLOT_SIZE);
+            }
+        }
+
+        return openSlotsOfDay;
     }
 }
